@@ -12,13 +12,6 @@ from pycontrails.models.cocip import Cocip
 from pycontrails.models.humidity_scaling import ConstantHumidityScaling
 from pycontrails.physics import units
 
-def extract_non_monotonic_idx(time):
-    for i in range(len(time) - 1):
-        if time[i + 1] <= time[i]:
-            return i + 1 # Non-monotonic index
-    
-    return None # If all time is monotonic, return None
-
 def run_from_flight(met_filepath):
     attrs = {
         "flight_id": "COMPARISON",
@@ -115,26 +108,6 @@ def process_and_save_outputs(contrail, filepath, idx = 14):
     width = np.array(width)
     depth = np.array(depth)
     segment_length = np.array(segment_length)
-    
-    # Sometimes time is not monotonically increasing. That messes with results.
-    idx = extract_non_monotonic_idx(times)
-    if idx is not None:
-        times = times[:idx]
-        N = N[:idx]
-        n = n[:idx]
-        alt_m = alt_m[:idx]
-        rhi = rhi[:idx]
-        iwc = iwc[:idx]
-        T = T[:idx]
-        rho_air_dry = rho_air_dry[:idx]
-        p = p[:idx]
-        SH = SH[:idx]
-        shear = shear[:idx]
-        area_eff = area_eff[:idx]
-        tau = tau[:idx]
-        width = width[:idx]
-        depth = depth[:idx]
-        segment_length = segment_length[:idx]
 
     rho_air_moist = rho_air_dry * ( SH / (1 - SH) + 1)
     I = iwc * rho_air_moist * area_eff

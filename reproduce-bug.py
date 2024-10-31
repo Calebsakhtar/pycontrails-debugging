@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pickle
 import os
+import pycontrails
 
 from pathlib import Path
 from pycontrails import Flight
@@ -67,6 +68,7 @@ def process_and_save_outputs(contrail, filepath, idx = 14):
     width = []
     depth = []
     segment_length = []
+    plume_mass = []
 
     if contrail is not None:
         # Iterate over each row 
@@ -90,6 +92,7 @@ def process_and_save_outputs(contrail, filepath, idx = 14):
                 width.append(row.width)
                 depth.append(row.depth)
                 segment_length.append(row.segment_length)
+                plume_mass.append(row.plume_mass_per_m)
 
     # Convert the lists to numpy arrays
     times = np.array(times)
@@ -108,10 +111,12 @@ def process_and_save_outputs(contrail, filepath, idx = 14):
     width = np.array(width)
     depth = np.array(depth)
     segment_length = np.array(segment_length)
+    plume_mass = np.array(plume_mass)
 
     rho_air_moist = rho_air_dry * ( SH / (1 - SH) + 1)
-    I = iwc * rho_air_moist * area_eff
+    I = iwc * plume_mass
     intOD = tau * width
+    water_mass = plume_mass * (iwc + SH)
 
     data = {
         "Time Since Formation, h": times,
@@ -133,6 +138,7 @@ def process_and_save_outputs(contrail, filepath, idx = 14):
         "Depth, m": depth,
         "Segment Length, m": segment_length,
         "Integrated Optical Depth, m": intOD,
+        "Plume Water Mass, kg / m": water_mass,
     }
 
     DF = pd.DataFrame.from_dict(data)
@@ -146,7 +152,7 @@ def test_RHi():
 
     ippath = "inputs/met"
     for filename in os.listdir(ippath):
-        if filename.endswith('.nc'):
+        if filename.endswith('.nc') and not filename.startswith('tristan'):
             RHi = filename[:3]
             print("\n**************")
             print(f"Running case with RHi {RHi}%")
@@ -173,6 +179,7 @@ def test_RHi():
     shs = []
     Ts = []
     rhos = []
+    H2Os = []
     for filename in os.listdir(oppath_model):
         if filename.endswith('.csv'):
             df = pd.read_csv(f"{oppath_model}/{filename}")
@@ -190,6 +197,7 @@ def test_RHi():
             shs.append(df['Specific Humidity, Ratio'].values)
             Ts.append(df['Air Temperature, K'].values)
             rhos.append(df['Dry Air Density, kg / m^3'].values)
+            H2Os.append(df["Plume Water Mass, kg / m"].values)
             RHis.append(filename[:3])
 
     oppath = "outputs/"
@@ -315,5 +323,208 @@ def test_RHi():
     plt.savefig(oppath + "fig_rho_vs_t.png")
     plt.close()
 
+    for i in range(len(RHis)):
+        plt.plot(ts[i],H2Os[i],label = "RHi = " + str(RHis[i]) + " %")   
+    plt.ylabel("Plume Water Mass, kg / m")
+    plt.xlabel("t, h")
+    plt.legend(reverse=True)
+    plt.tight_layout(pad=2.0)
+    plt.savefig(oppath + "fig_H20_vs_t.png")
+    plt.close()
+
+def test_tristan():
+    oppath_model = "outputs/met"
+    Path(oppath_model).mkdir(parents=True, exist_ok=True)
+
+    ippath = "inputs/met"
+    for filename in os.listdir(ippath):
+        if filename == "tristan-met.nc":
+            df, contrail = run_from_flight(met_filepath=f"{ippath}/{filename}")
+            process_and_save_outputs(
+                contrail = contrail,
+                idx = 14,
+                filepath = f"{oppath_model}/tristan.csv"
+            )
+            print("**************\n")
+
+    Ns = []
+    ns = []
+    Is = []
+    ts = []
+    intODs = []
+    As = []
+    ODs = []
+    widths = []
+    depths = []
+    RHis = []
+    alts = []
+    rhis = []
+    shs = []
+    Ts = []
+    rhos = []
+    H2Os = []
+
+    for filename in os.listdir(oppath_model):
+        if filename == "tristan.csv":
+            df = pd.read_csv(f"{oppath_model}/{filename}")
+            ts = df["Time Since Formation, h"].values
+            Ns = df["N, # / m"].values
+            Is = df["I, kg of ice / m"].values
+            intODs = df["Integrated Optical Depth, m"].values
+            ODs = df["Optical Depth, ---"].values
+            As = df["Effective Area, m^2"].values
+            widths = df["Width, m"].values
+            depths = df["Depth, m"].values
+            alts = df["Altitude, m"].values
+            ns = df["n, # / m^3"].values
+            rhis = df["RHi, %"].values
+            shs = df['Specific Humidity, Ratio'].values
+            Ts = df['Air Temperature, K'].values
+            rhos = df['Dry Air Density, kg / m^3'].values
+            H2Os = df["Plume Water Mass, kg / m"].values
+
+    oppath = "outputs/tristan/"
+    Path(oppath).mkdir(parents=True, exist_ok=True)
+
+
+    plt.plot(ts,Ns)
+    plt.ylabel("Total Ice Particles, #/m")
+    plt.xlabel("t, h")
+    plt.yscale('log')
+    plt.legend(reverse=True)
+    plt.tight_layout(pad=2.0)
+    plt.savefig(oppath + "fig_tristan_N_vs_t.png")
+    plt.close()
+
+    
+    plt.plot(ts,Is)   
+    plt.ylabel("Total Ice Mass, kg/m")
+    plt.xlabel("t, h")
+    plt.legend(reverse=True)
+    plt.tight_layout(pad=2.0)
+    plt.savefig(oppath + "fig_tristan_I_vs_t.png")
+    plt.close()
+
+    
+    plt.plot(ts,intODs)   
+    plt.ylabel("Optical Depth * Width, m")
+    plt.xlabel("t, h")
+    plt.legend(reverse=True)
+    plt.tight_layout(pad=2.0)
+    plt.savefig(oppath + "fig_tristan_intOD_vs_t.png")
+    plt.close()
+
+    
+    plt.plot(ts,ODs)   
+    plt.ylabel("Optical Depth")
+    plt.xlabel("t, h")
+    plt.legend(reverse=True)
+    plt.yscale('log')
+    plt.tight_layout(pad=2.0)
+    plt.savefig(oppath + "fig_tristan_OD_vs_t.png")
+    plt.close()
+
+    
+    plt.plot(ts,As)   
+    plt.ylabel("Area, m^2")
+    plt.xlabel("t, h")
+    plt.legend(reverse=True)
+    plt.tight_layout(pad=2.0)
+    plt.savefig(oppath + "fig_tristan_area_vs_t.png")
+    plt.close()
+
+    
+    plt.plot(ts,widths)   
+    plt.ylabel("Width, m")
+    plt.xlabel("t, h")
+    plt.legend(reverse=True)
+    plt.tight_layout(pad=2.0)
+    plt.savefig(oppath + "fig_tristan_width_vs_t.png")
+    plt.close()
+
+    
+    plt.plot(ts,depths)   
+    plt.ylabel("Depth, m")
+    plt.xlabel("t, h")
+    plt.legend(reverse=True)
+    plt.tight_layout(pad=2.0)
+    plt.savefig(oppath + "fig_tristan_depth_vs_t.png")
+    plt.close()
+
+    
+    plt.plot(ts,alts)   
+    plt.ylabel("Altitude, m")
+    plt.xlabel("t, h")
+    plt.legend(reverse=True)
+    plt.tight_layout(pad=2.0)
+    plt.savefig(oppath + "fig_tristan_alt_vs_t.png")
+    plt.close()
+
+    
+    plt.plot(ts,ns)   
+    plt.ylabel("n, #/m^3")
+    plt.xlabel("t, h")
+    plt.legend(reverse=True)
+    plt.yscale('log')
+    plt.tight_layout(pad=2.0)
+    plt.savefig(oppath + "fig_tristan_n_per_m3_vs_t.png")
+    plt.close()
+
+    
+    plt.plot(ts,rhis)   
+    plt.ylabel("RHi, %")
+    plt.xlabel("t, h")
+    plt.legend(reverse=True)
+    plt.tight_layout(pad=2.0)
+    plt.savefig(oppath + "fig_tristan_RHi_vs_t.png")
+    plt.close()
+
+    
+    plt.plot(ts,shs)   
+    plt.ylabel("Specific Humidity")
+    plt.xlabel("t, h")
+    plt.legend(reverse=True)
+    plt.tight_layout(pad=2.0)
+    plt.savefig(oppath + "fig_tristan_SH_vs_t.png")
+    plt.close()
+
+    
+    plt.plot(ts,Ts)   
+    plt.ylabel("Air Temperature, K")
+    plt.xlabel("t, h")
+    plt.legend(reverse=True)
+    plt.tight_layout(pad=2.0)
+    plt.savefig(oppath + "fig_tristan_T_vs_t.png")
+    plt.close()
+
+    
+    plt.plot(ts,rhos)   
+    plt.ylabel("Air Density, kg / m^3")
+    plt.xlabel("t, h")
+    plt.legend(reverse=True)
+    plt.tight_layout(pad=2.0)
+    plt.savefig(oppath + "fig_tristan_rho_vs_t.png")
+    plt.close()
+
+    
+    plt.plot(ts,H2Os)   
+    plt.ylabel("Plume Water Mass, kg / m")
+    plt.xlabel("t, h")
+    plt.legend(reverse=True)
+    plt.tight_layout(pad=2.0)
+    plt.savefig(oppath + "fig_tristan_H20_vs_t.png")
+    plt.close()
+
+    plt.plot(rhis,alts)   
+    plt.ylabel("Altitude, m")
+    plt.xlabel("Relative Humidity wrt Ice, %")
+    plt.legend(reverse=True)
+    plt.tight_layout(pad=2.0)
+    plt.savefig(oppath + "fig_tristan_alt_vs_rhi.png")
+    plt.close()
+
+
 if __name__ == "__main__":
+    print(pycontrails.__version__)
     test_RHi()
+    test_tristan()

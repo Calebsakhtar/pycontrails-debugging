@@ -69,6 +69,7 @@ def process_and_save_outputs(contrail, filepath, idx = 14):
     depth = []
     segment_length = []
     plume_mass = []
+    q_sat = []
 
     if contrail is not None:
         # Iterate over each row 
@@ -93,6 +94,7 @@ def process_and_save_outputs(contrail, filepath, idx = 14):
                 depth.append(row.depth)
                 segment_length.append(row.segment_length)
                 plume_mass.append(row.plume_mass_per_m)
+                q_sat.append(row.q_sat)
 
     # Convert the lists to numpy arrays
     times = np.array(times)
@@ -112,11 +114,12 @@ def process_and_save_outputs(contrail, filepath, idx = 14):
     depth = np.array(depth)
     segment_length = np.array(segment_length)
     plume_mass = np.array(plume_mass)
+    q_sat = np.array(q_sat)
 
     rho_air_moist = rho_air_dry * ( SH / (1 - SH) + 1)
     I = iwc * plume_mass
     intOD = tau * width
-    water_mass = plume_mass * (iwc + SH)
+    water_mass = plume_mass * (iwc + q_sat)
 
     data = {
         "Time Since Formation, h": times,
